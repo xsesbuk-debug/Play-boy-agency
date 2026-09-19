@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Play Boy Agency</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+.hidden{display:none}
+*{box-sizing:border-box}body{margin:0;background:#f3f7ff;color:#102a43;font-family:Arial,sans-serif}
+header{background:linear-gradient(135deg,#0759d8,#10a7ff);color:#fff;text-align:center;padding:28px 15px}
+main{max-width:850px;margin:auto;padding:15px}.card{background:#fff;border-radius:18px;padding:18px;margin:15px 0;box-shadow:0 8px 25px #123b6814}
+h2{color:#0759d8}input,select,button{width:100%;padding:12px;margin:6px 0;border-radius:10px;border:1px solid #cbd5e1;font-size:15px}
+button{background:#0759d8;color:#fff;border:0;font-weight:bold}button.alt{background:#e8f1ff;color:#0759d8}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px}.item{border:1px solid #dbeafe;border-radius:14px;overflow:hidden}.item img{width:100%;height:155px;object-fit:cover}.inside{padding:10px}.locked{filter:blur(8px)}.muted{font-size:13px;color:#627d98}.notice{padding:12px;background:#fff7ed;border-left:4px solid #f59e0b;border-radius:8px;font-size:13px}
+.hidden{display:none}#preview{max-width:100%;max-height:220px;margin-top:8px;border-radius:10px}
+</style>
+</head>
+<body>
+<header><h1>প্লেবয় এজেন্সি</h1><p>সদস্যপদ ও কনটেন্ট অ্যাক্সেস</p></header>
+<main>
+
+
+<section class="card">
+<h2>১. রেজিস্ট্রেশন / লগইন</h2>
+<input id="email" type="email" placeholder="ইমেইল">
+<input id="password" type="password" placeholder="পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)">
+<input id="fullName" placeholder="নাম (রেজিস্ট্রেশনের সময়)">
+<button onclick="signUp()">রেজিস্ট্রেশন</button>
+<button class="alt" onclick="signIn()">লগইন</button>
+<button class="alt" onclick="signOut()">লগআউট</button>
+<p id="authMsg" class="muted"></p>
+</section>
+
+<section id="paymentCard" class="card hidden">
+<h2>২. পেমেন্ট রিকোয়েস্ট</h2>
+<div class="notice">পেমেন্টের তথ্য অ্যাডমিন যাচাই করার পর অ্যাক্সেস অনুমোদন করা উচিত। এই সাইট নিজে থেকে পেমেন্ট সত্যতা যাচাই করে না।</div>
+<p><b>bKash:</b> 01842151907</p><p><b>Nagad:</b> 01722144619</p><p><b>Rocket:</b> 01838962362</p>
+<select id="method"><option>bKash</option><option>Nagad</option><option>Rocket</option></select>
+<input id="amount" type="number" placeholder="পরিমাণ">
+<input id="trx" placeholder="Transaction ID">
+<input id="proof" type="file" accept="image/*" onchange="previewImage(event)">
+<img id="preview" class="hidden">
+<button onclick="submitPayment()">পেমেন্ট রিকোয়েস্ট পাঠান</button>
+<button class="alt" onclick="loadUser()">অনুমোদন স্ট্যাটাস চেক করুন</button>
+<p id="payMsg" class="muted"></p>
+</section>
+
+<section id="galleryCard" class="card hidden">
+<h2>৩. ছবি</h2>
+<p class="muted">অ্যাডমিন অনুমোদিত হলে আপনার আনলক কাউন্ট অনুযায়ী ছবি দেখা যাবে।</p>
+<div id="gallery" class="grid"></div>
+</section>
+</main>
+
+<script>
+const SUPABASE_URL="https://yaxxpuomskanmaxpvchf.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY="PASTE_YOUR_PUBLISHABLE_KEY_HERE";
+const client=supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+
+const images=[
+"images/photo1.jpg",
+"images/photo2.jpg",
+"images/photo3.jpg",
+"images/photo4.jpg",
+"images/photo5.jpg",
+"images/photo6.jpg"
+];
+let currentUser=null, approvedCount=0;
+
+async function signUp(){
+ const emailVal=email.value.trim(), pass=password.value, nameVal=fullName.value.trim();
+ if(!emailVal||pass.length<6||!nameVal){authMsg.textContent="সব তথ্য সঠিকভাবে দিন";return}
+ const {data,error}=await client.auth.signUp({email:emailVal,password:pass,options:{data:{full_name:nameVal}}});
+ authMsg.textContent=error?error.message:"রেজিস্ট্রেশন হয়েছে। ইমেইল কনফার্ম করতে হতে পারে।";
+ if(data.user) await loadUser();
+}
+async function signIn(){
+ const emailVal=document.getElementById("email").value.trim();
+ const pass=document.getElementById("password").value;
+ if(SUPABASE_PUBLISHABLE_KEY.includes("PASTE_")){authMsg.textContent="Acode-এ আপনার Publishable key বসান।";return}
+ if(!emailVal||!pass){authMsg.textContent="ইমেইল ও পাসওয়ার্ড দিন";return}
+ const {data,error}=await client.auth.signInWithPassword({email:emailVal,password:pass});
+ if(error){authMsg.textContent="লগইন ব্যর্থ: "+error.message;return}
+ authMsg.textContent="লগইন সফল হয়েছে";
+ if(data.user) await loadUser();
+}
+async function signOut(){await client.auth.signOut();currentUser=null;approvedCount=0;document.getElementById("paymentCard").classList.add("hidden");document.getElementById("galleryCard").classList.add("hidden");authMsg.textContent="লগআউট হয়েছে";render()}
+async function loadUser(){
+ const {data,error}=await client.auth.getUser();
+ if(error||!data.user){currentUser=null;document.getElementById("paymentCard").classList.add("hidden");document.getElementById("galleryCard").classList.add("hidden");return;}
+ currentUser=data.user;
+ document.getElementById("paymentCard").classList.remove("hidden");
+ document.getElementById("galleryCard").classList.remove("hidden");
+ const {data:rows}=await client.from("payment_requests").select("approved_unlocks").eq("user_id",currentUser.id).eq("status","approved");
+ approvedCount=(rows||[]).reduce((sum,r)=>sum+Number(r.approved_unlocks||0),0);
+ render();
+ const note=document.getElementById("payMsg");
+ if(currentUser && approvedCount>0) note.textContent="অ্যাডমিন অনুমোদন করেছেন। "+approvedCount+"টি ছবি আনলক হয়েছে।";
+}
+function previewImage(e){const f=e.target.files[0];if(!f)return;preview.src=URL.createObjectURL(f);preview.classList.remove("hidden")}
+async function submitPayment(){
+ if(!currentUser){payMsg.textContent="আগে লগইন করুন";return}
+ if(!amount.value||!trx.value.trim()){payMsg.textContent="পরিমাণ ও Transaction ID দিন";return}
+ let screenshot_url=null;
+ const file=proof.files[0];
+ if(file){
+   const path=currentUser.id+"/"+Date.now()+"_"+file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+   const upload=await client.storage.from("payment-proofs").upload(path,file);
+   if(upload.error){payMsg.textContent=upload.error.message;return}
+   screenshot_url=path;
+ }
+ const {error}=await client.from("payment_requests").insert({
+   user_id:currentUser.id,method:method.value,amount:Number(amount.value),
+   transaction_id:trx.value.trim(),screenshot_path:screenshot_url,status:"pending"
+ });
+ payMsg.textContent=error?error.message:"রিকোয়েস্ট জমা হয়েছে। অ্যাডমিন যাচাই করার পর ছবি দেখা যাবে।";
+ await loadUser();
+}
+function render(){
+ gallery.innerHTML=images.map((src,i)=>`<div class="item"><img src="${src}" class="${i<approvedCount?'':'locked'}"><div class="inside"><b>ছবি ${i+1}</b><div class="muted">${i<approvedCount?'✓ অনুমোদিত':'🔒 অনুমোদনের অপেক্ষায়'}</div></div></div>`).join("");
+}
+client.auth.onAuthStateChange((_event,session)=>{currentUser=session?.user||null;if(currentUser)loadUser();else render()});
+render();
+</script>
+</body>
+</html>
